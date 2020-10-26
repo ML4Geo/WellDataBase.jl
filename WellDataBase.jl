@@ -3,6 +3,7 @@ module WellDataBase
 import DelimitedFiles
 import DataFrames
 import Dates
+import NMFk
 
 csvheader = ["API", "WellName", "Id", "WellId", "ReportDate", "Days", "Lease", "Operator", "WellsInLease", "Field", "Formation", "TotalOil", "LeaseOilAllowable", "WellOilAllowable", "WellOil", "TotalGas", "LeaseGasAllowable", "WellGasAllowable", "WellGas", "TotalWater", "WellWater", "GOR", "ReportMonth", "ReportYear", "ReportedOperator", "ReportedFormation", "InterpretedFormation"]
 csvtypes = [Int64, String, String, String, Dates.Date, Int32, Int32, String, Int32, String, String, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Int32, Int32, String, String, String]
@@ -10,14 +11,14 @@ csvtypes = [Int64, String, String, String, Dates.Date, Int32, Int32, String, Int
 function read(datadirs=["csv-201908102241", "csv-201908102238", "csv-201908102239"]; location="data/eagleford-play-20191008")
 	df = DataFrames.DataFrame()
 	for d in datadirs
-		a, h = DelimitedFiles.readdlm(joinpath(location, d, d * "-Production.csv", ','; header=true)
+		a, h = DelimitedFiles.readdlm(joinpath(location, d, d * "-Production.csv"), ','; header=true)
 		dfl = DataFrames.DataFrame()
 		for i = 1:size(a, 2)
 			s = Symbol(csvheader[i])
 			ism = a[:, i] .== ""
 			@info "Column " i csvheader[i] csvtypes[i] sum(ism)
 			if csvtypes[i] == Dates.Date
-				dfl[!, s] = Dates.Date.(a[:, i], "mm/dd/yyyy HH:MM:SS")
+				dfl[!, s] = Dates.Date.(a[:, i], Dates.dateformat"mm/dd/yyyy HH:MM:SS")
 			elseif csvtypes[i] == String
 				iwelldates = typeof.(a[:, i]) .== Int64
 				a[iwelldates, i] .= string.(a[iwelldates, i])
@@ -69,4 +70,6 @@ function read(datadirs=["csv-201908102241", "csv-201908102238", "csv-20190810223
 	dates = startdate:Dates.Month(1):enddate
 
 	return df, api, goodwells, dates
+end
+
 end
