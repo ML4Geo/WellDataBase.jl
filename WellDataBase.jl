@@ -3,10 +3,11 @@ module WellDataBase
 import DelimitedFiles
 import DataFrames
 import Dates
-import NMFk
 
 csvheader = ["API", "WellName", "Id", "WellId", "ReportDate", "Days", "Lease", "Operator", "WellsInLease", "Field", "Formation", "TotalOil", "LeaseOilAllowable", "WellOilAllowable", "WellOil", "TotalGas", "LeaseGasAllowable", "WellGasAllowable", "WellGas", "TotalWater", "WellWater", "GOR", "ReportMonth", "ReportYear", "ReportedOperator", "ReportedFormation", "InterpretedFormation"]
 csvtypes = [Int64, String, String, String, Dates.Date, Int32, Int32, String, Int32, String, String, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Int32, Int32, String, String, String]
+
+sumnan(xs) = sum(filter(!isnan, xs))
 
 function read(datadirs=["csv-201908102241", "csv-201908102238", "csv-201908102239"]; location="data/eagleford-play-20191008")
 	df = DataFrames.DataFrame()
@@ -45,7 +46,7 @@ function read(datadirs=["csv-201908102241", "csv-201908102238", "csv-20190810223
 		iwell = findall((in)(w), df[!, :API])
 		oil = df[!, :WellOil][iwell]
 		gas = df[!, :WellGas][iwell]
-		if NMFk.sumnan(oil) > 0 || NMFk.sumnan(gas) > 0
+		if sumnan(oil) > 0 || sumnan(gas) > 0
 			goodwells[i] = true
 		end
 	end
