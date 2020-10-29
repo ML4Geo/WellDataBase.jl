@@ -10,7 +10,8 @@ csvtypes = [Int64, String, String, String, Dates.Date, Int32, Int32, String, Int
 function read(datadirs=["csv-201908102241", "csv-201908102238", "csv-201908102239"]; location="data/eagleford-play-20191008")
 	df = DataFrames.DataFrame()
 	for d in datadirs
-		a, h = DelimitedFiles.readdlm(joinpath(location, d, d * "-Production.csv", ','; header=true))
+		@show location
+		a, h = DelimitedFiles.readdlm(joinpath(location, d, d * "-Production.csv"), ','; header=true)
 		dfl = DataFrames.DataFrame()
 		for i = 1:size(a, 2)
 			s = Symbol(csvheader[i])
