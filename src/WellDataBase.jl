@@ -7,11 +7,15 @@ import Dates
 csvheader = ["API", "WellName", "Id", "WellId", "ReportDate", "Days", "Lease", "Operator", "WellsInLease", "Field", "Formation", "TotalOil", "LeaseOilAllowable", "WellOilAllowable", "WellOil", "TotalGas", "LeaseGasAllowable", "WellGasAllowable", "WellGas", "TotalWater", "WellWater", "GOR", "ReportMonth", "ReportYear", "ReportedOperator", "ReportedFormation", "InterpretedFormation"]
 csvtypes = [Int64, String, String, String, Dates.Date, Int32, Int32, String, Int32, String, String, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Int32, Int32, String, String, String]
 
-function read(datadirs=["csv-201908102241", "csv-201908102238", "csv-201908102239"]; location="data/eagleford-play-20191008")
+function read(datadirs::AbstractVector; location::AbstractString=".")
 	df = DataFrames.DataFrame()
 	for d in datadirs
-		@show location
-		a, h = DelimitedFiles.readdlm(joinpath(location, d, d * "-Production.csv"), ','; header=true)
+		f = joinpath(location, d, d * "-Production.csv")
+		if !isfile(f)
+			@warn("File $f is missing!")
+			continue
+		end
+		a, h = DelimitedFiles.readdlm(f, ','; header=true)
 		dfl = DataFrames.DataFrame()
 		for i = 1:size(a, 2)
 			s = Symbol(csvheader[i])
@@ -38,6 +42,11 @@ function read(datadirs=["csv-201908102241", "csv-201908102238", "csv-20190810223
 		df = vcat(df, dfl)
 	end
 
+	if size(df, 1) == 0
+		@warn("No data provided to read!")
+		return nothing
+	end
+
 	api = unique(sort(df[!, :API]))
 
 	goodwells = falses(length(api))
@@ -45,7 +54,7 @@ function read(datadirs=["csv-201908102241", "csv-201908102238", "csv-20190810223
 		iwell = findall((in)(w), df[!, :API])
 		oil = df[!, :WellOil][iwell]
 		gas = df[!, :WellGas][iwell]
-		if NMFk.sumnan(oil) > 0 || NMFk.sumnan(gas) > 0
+		if sumnan(oil) > 0 || sumnan(gas) > 0
 			goodwells[i] = true
 		end
 	end
@@ -70,6 +79,21 @@ function read(datadirs=["csv-201908102241", "csv-201908102238", "csv-20190810223
 	dates = startdate:Dates.Month(1):enddate
 
 	return df, api, goodwells, dates
+end
+
+function sumnan(X; dims=nothing, kw...)
+	if dims == nothing
+		return sum(X[.!isnan.(X)]; kw...)
+	else
+		count = .*(size(X)[vec(collect(dims))]...)
+		I = isnan.(X)
+		X[I] .= 0
+		sX = sum(X; dims=dims, kw...)
+		X[I] .= NaN
+		sI = sum(I; dims=dims, kw...)
+		sX[sI.==count] .= NaN
+		return sX
+	end
 end
 
 end
