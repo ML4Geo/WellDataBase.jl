@@ -78,7 +78,7 @@ function read(datadirs::AbstractVector; location::AbstractString=".")
 
 	dates = startdate:Dates.Month(1):enddate
 
-	return df, api, goodwells, dates
+	return df, api, goodwells, recordlength, dates
 end
 
 function sumnan(X; dims=nothing, kw...)
