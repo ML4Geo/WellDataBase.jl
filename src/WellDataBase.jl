@@ -7,7 +7,7 @@ import Dates
 csvheader = ["API", "WellName", "Id", "WellId", "ReportDate", "Days", "Lease", "Operator", "WellsInLease", "Field", "Formation", "TotalOil", "LeaseOilAllowable", "WellOilAllowable", "WellOil", "TotalGas", "LeaseGasAllowable", "WellGasAllowable", "WellGas", "TotalWater", "WellWater", "GOR", "ReportMonth", "ReportYear", "ReportedOperator", "ReportedFormation", "InterpretedFormation"]
 csvtypes = [Int64, String, String, String, Dates.Date, Int32, Int32, String, Int32, String, String, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Int32, Int32, String, String, String]
 
-function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:WellOil], skipstring=true, cvsread=["API", "ReportDate", "WellOil", "WellGas", "WellWater"])
+function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:WellOil], skipstring=true, cvsread=["API", "ReportDate", "WellOil", "WellGas", "WellWater"], checkzero::Bool=true)
 	df = DataFrames.DataFrame()
 	for d in datadirs
 		f = joinpath(location, d, d * "-Production.csv")
@@ -42,7 +42,7 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 					dfl[!, s] = convert.(csvtypes[i], a[:, i])
 				end
 			else
-				@info("Column $i: $(csvheader[i]) Type: $(csvtypes[i]) Number of missing entries: $(sum(ism))")
+				@info("Column $i: $(csvheader[i]) Type: $(csvtypes[i]) Number of missing entries: $(sum(ism)) SKIPPED!")
 			end
 		end
 		df = vcat(df, dfl)
@@ -60,9 +60,10 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 	startdate = maximum(df[!, :ReportDate])
 	enddate = minimum(df[!, :ReportDate])
 	recordlength = 0
+	longwell = 0
+	longwellc = 0
 	goodwells = falses(length(api))
 	for (i, w) in enumerate(api)
-		# iwell = findall((in)(w), df[!, :API])
 		iwell = df[!, :API] .== w
 		innvol = falses(sum(iwell))
 		gw = false
@@ -70,7 +71,11 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 			p = df[!, l][iwell]
 			if sumnan(p) > 0
 				gw = true
-				innvol .|= .!isnan.(p)
+				if checkzero
+					innvol .|= p .> 0
+				else
+					innvol .|= .!isnan.(p)
+				end
 			end
 		end
 		goodwells[i] = gw
@@ -78,7 +83,12 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 			welldates = df[!, :ReportDate][iwell][innvol]
 			dmin = minimum(welldates)
 			dmax = maximum(welldates)
-			recordlength = max(recordlength, length(dmin:Dates.Month(1):dmax))
+			rl = length(dmin:Dates.Month(1):dmax)
+			if recordlength < rl
+				recordlength = rl
+				longwell = w
+				longwellc = i
+			end
 			startdate = min(startdate, dmin)
 			enddate = max(enddate, dmax)
 		end
@@ -88,85 +98,11 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 	@info("Record start date: $(startdate)")
 	@info("Record end  date: $(enddate)")
 	@info("Max record length: $(recordlength) months")
+	@info("Long well: $(longwell) ($(longwellc))")
 
 	dates = startdate:Dates.Month(1):enddate
 
 	return df, api, goodwells, recordlength, dates
-end
-
-function create_production_matrix(df, api, goodwells, dates; label=:WellOil)
-	oilm = Array{Float32}(undef, length(dates), sum(goodwells))
-	oilm .= NaN32
-	for (i, w) in enumerate(api[goodwells])
-		iwell = findall((in)(w), df[!, :API])
-		oil = df[!, label][iwell]
-		innoil = .!isnan.(oil)
-		welldates = df[!, :ReportDate][iwell][innoil]
-		iwelldates = indexin(welldates, collect(dates))
-		oilm[iwelldates, i] .= 0
-		for (a, b) in enumerate(oil[innoil])
-			oilm[iwelldates[a], i] += b
-		end
-	end
-	return oilm
-end
-
-function create_production_matrix_shifted(df, api, goodwells, recordlength, dates; label=:WellOil)
-	oils = Array{Float32}(undef, recordlength, sum(goodwells))
-	oils .= NaN32
-	startdates = Array{Dates.Date}(undef, sum(goodwells))
-	enddates = Array{Dates.Date}(undef, sum(goodwells))
-	totaloil = Array{Float32}(undef, sum(goodwells))
-	for (i, w) in enumerate(api[goodwells])
-		iwell = findall((in)(w), df[!, :API])
-		welldates = df[!, :ReportDate][iwell]
-		isortedwelldates = sortperm(welldates)
-		oil = df[!, label][iwell][isortedwelldates]
-		innoil = .!isnan.(oil)
-		totaloil[i] = sum(oil[innoil])
-		if totaloil[i] == 0
-			@warn("Well $w: has zero production ($(string(label)))!")
-			ioilfirst = findfirst(i->i>0, innoil)
-			ioillast = findlast(i->i>0, innoil)
-		else
-			ioilfirst = findfirst(i->i>0, oil[innoil])
-			ioillast = findlast(i->i>0, oil[innoil])
-		end
-		startdates[i] = welldates[isortedwelldates][innoil][ioilfirst]
-		enddates[i] = welldates[isortedwelldates][innoil][ioillast]
-		iwelldates = indexin(welldates[isortedwelldates][innoil], collect(dates))
-		iwelldates2 = iwelldates[ioilfirst:end] .- iwelldates[ioilfirst] .+ 1
-		oils[iwelldates2, i] .= 0
-		for (a, b) in enumerate(ioilfirst:length(oil[innoil]))
-			oils[iwelldates2[a], i] += oil[innoil][b]
-		end
-		if totaloil[i] != sumnan(oils[:, i])
-			@warn("Well $w (column $i): something is very wrong!")
-			@show totaloil[i]
-			@show sumnan(oils[:, i])
-			@show sum(oils[:, i] .> 0)
-
-			@show oil[innoil]
-
-			@show iwelldates2
-			@show dates[iwelldates]
-			@show ioilfirst:length(oil[innoil])
-
-			oils[iwelldates2, i] .= 0
-			for (a, b) in enumerate(ioilfirst:length(oil[innoil]))
-				@show (a, b)
-				@show dates[iwelldates][a]
-				@show iwelldates2[a]
-				@show oil[innoil][b]
-				oils[iwelldates2[a], i] += oil[innoil][b]
-				@show oils[iwelldates2[a], i]
-			end
-
-			@show sumnan(oils[:, i])
-			@show sum(oils[:, i] .> 0)
-		end
-	end
-	return oils, startdates, enddates, totaloil
 end
 
 function sumnan(X; dims=nothing, kw...)
