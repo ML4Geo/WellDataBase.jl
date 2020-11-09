@@ -105,6 +105,60 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 	return df, api, goodwells, recordlength, dates
 end
 
+function read_header(datadirs::AbstractVector; location::AbstractString=".")
+	df_header = DataFrames.DataFrame()
+	for d in datadirs
+		f = joinpath(location, d, d * "-Header.csv")
+		if !isfile(f)
+			@warn("File $f is missing!")
+			continue
+		end
+		@info("File: $f")
+		a, h = DelimitedFiles.readdlm("data/eagleford-play-20191008/$(d)/$(d)-Header.csv", ','; header=true)
+		dfl = DataFrames.DataFrame()
+		for i = 1:size(a, 2)
+			ism = a[:, i] .== ""
+			processed = false
+			if h[i] == "API"
+				processed = true
+				a[ism, i] .= 0
+				dfl[!, :API] = convert.(Int64, a[:, i])
+			elseif h[i] == "BHLatitude"
+				processed = true
+				a[ism, i] .= NaN
+				dfl[!, :Lat] = convert.(Float32, a[:, i])
+			elseif h[i] == "BHLongitude"
+				processed = true
+				a[ism, i] .= NaN
+				dfl[!, :Lon] = convert.(Float32, a[:, i])
+			elseif h[i] == "TrueVerticalDepth"
+				processed = true
+				a[ism, i] .= NaN
+				dfl[!, :Depth] = convert.(Float32, a[:, i])
+			elseif h[i] == "WellType"
+				processed = true
+				a[ism, i] .= ""
+				dfl[!, :WellType] = uppercase.(convert.(String, a[:, i]))
+			elseif h[i] == "PrimaryFormation"
+				processed = true
+				a[ism, i] .= ""
+				dfl[!, :Formation] = uppercase.(convert.(String, a[:, i]))
+			elseif h[i] == "ReportedCurrentOperator"
+				processed = true
+				a[ism, i] .= ""
+				dfl[!, :Operator] = uppercase.(convert.(String, a[:, i]))
+			elseif h[i] == "ReportedWellboreProfile"
+				processed = true
+				a[ism, i] .= ""
+				dfl[!, :Orientation] = uppercasefirst.(lowercase.(convert.(String, a[:, i])))
+			end
+			@info "Col $i $(h[i]) --> $(processed)"
+		end
+		df_header = vcat(df_header, dfl)
+	end
+	return df_header
+end
+
 function sumnan(X; dims=nothing, kw...)
 	if dims == nothing
 		return sum(X[.!isnan.(X)]; kw...)
