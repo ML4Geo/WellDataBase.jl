@@ -85,13 +85,12 @@ function well_summary(oil, gas, water, report_date)
      EndDate=isempty(welldates) ? missing : maximum(welldates))
 end
 
-function read2(datadirs=["csv-201908102241", "csv-201908102238", "csv-201908102239"]; location="data/eagleford-play-20191008")
+function read2(production_files)
     df = DataFrames.DataFrame()
-    for d in datadirs
-        path = joinpath(location, d, d * "-Production.csv")
-        dfl = DataFrame(CSV.File(path, types=csvtypes,
+    for prodfile in production_files
+        dfl = DataFrame(CSV.File(open(Vector{UInt8}, prodfile), types=csvtypes,
                                  dateformat=Dates.dateformat"mm/dd/yyyy HH:MM:SS"))
-        @info "Loaded data" path summary(dfl)
+        @info "Loaded data" prodfile summary(dfl)
         for (i,coltype) in enumerate(csvtypes)
             if coltype == Float32
                 dfl[:, i] = max.(dfl[!, i], 0.0f0)
