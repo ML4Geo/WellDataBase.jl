@@ -7,7 +7,8 @@ import Dates
 csvheader = ["API", "WellName", "Id", "WellId", "ReportDate", "Days", "Lease", "Operator", "WellsInLease", "Field", "Formation", "TotalOil", "LeaseOilAllowable", "WellOilAllowable", "WellOil", "TotalGas", "LeaseGasAllowable", "WellGasAllowable", "WellGas", "TotalWater", "WellWater", "GOR", "ReportMonth", "ReportYear", "ReportedOperator", "ReportedFormation", "InterpretedFormation"]
 csvtypes = [Int64, String, String, String, Dates.Date, Int32, Int32, String, Int32, String, String, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Float32, Int32, Int32, String, String, String]
 
-function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:WellOil], skipstring=true, cvsread=["API", "ReportDate", "WellOil", "WellGas", "WellWater"], checkzero::Bool=true)
+function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:WellOil], skipstring=true, cvsread=["API", "ReportDate", "WellOil", "WellGas", "WellWater"], checkzero::Bool=true, downselect::AbstractVector=[])
+	df_header = read_header(datadirs; location=location)
 	df = DataFrames.DataFrame()
 	for d in datadirs
 		f = joinpath(location, d, d * "-Production.csv")
@@ -78,6 +79,20 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 				end
 			end
 		end
+		if length(downselect) > 0
+			ig = indexin(w, df_header[!, :API])[1]
+			if ig == nothing
+				lgw = false
+			else
+				lgw = true
+				for d in downselect
+					if df_header[ig, d[1]] != d[2]
+						lgw = false
+					end
+				end
+			end
+			gw = lgw
+		end
 		goodwells[i] = gw
 		if sum(innvol) > 0
 			welldates = df[!, :ReportDate][iwell][innvol]
@@ -102,7 +117,10 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 
 	dates = startdate:Dates.Month(1):enddate
 
-	return df, api, goodwells, recordlength, dates
+	df_header = df_header[indexin(api[goodwells], df_header[!, :API]),:]
+	df = df[findall((in)(api[goodwells]), df[!, :API]), :]
+
+	return df, df_header, api[goodwells], recordlength, dates
 end
 
 function read_header(datadirs::AbstractVector; location::AbstractString=".")
