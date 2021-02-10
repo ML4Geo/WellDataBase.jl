@@ -81,7 +81,7 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 		end
 		if length(downselect) > 0
 			ig = indexin(w, df_header[!, :API])[1]
-			if ig == nothing
+			if ig === nothing
 				lgw = false
 			else
 				lgw = true
@@ -108,6 +108,32 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 			enddate = max(enddate, dmax)
 		end
 	end
+
+	@info("Record start date: $(startdate)")
+	@info("Record end  date: $(enddate)")
+	@info("Max record length: $(recordlength) months")
+	@info("Long well: $(longwell) ($(longwellc))")
+
+	startdate = maximum(df[!, :ReportDate])
+	enddate = minimum(df[!, :ReportDate])
+	recordlength = 0
+	longwell = 0
+	longwellc = 0
+	for (i, w) in enumerate(api[goodwells])
+		iwell = df[!, :API] .== w
+		welldates = df[!, :ReportDate][iwell]
+		dmin = minimum(welldates)
+		dmax = maximum(welldates)
+		rl = length(dmin:Dates.Month(1):dmax)
+		if recordlength < rl
+			recordlength = rl
+			longwell = w
+			longwellc = i
+		end
+		startdate = min(startdate, dmin)
+		enddate = max(enddate, dmax)
+	end
+
 	@info("Number of good wells: $(sum(goodwells))")
 
 	@info("Record start date: $(startdate)")
@@ -117,7 +143,7 @@ function read(datadirs::AbstractVector; location::AbstractString=".", labels=[:W
 
 	dates = startdate:Dates.Month(1):enddate
 
-	df_header = df_header[indexin(api[goodwells], df_header[!, :API]),:]
+	df_header = df_header[indexin(api[goodwells], df_header[!, :API]), :]
 	df = df[findall((in)(api[goodwells]), df[!, :API]), :]
 
 	return df, df_header, api[goodwells], recordlength, dates
@@ -132,7 +158,7 @@ function read_header(datadirs::AbstractVector; location::AbstractString=".")
 			continue
 		end
 		@info("File: $f")
-		a, h = DelimitedFiles.readdlm("data/eagleford-play-20191008/$(d)/$(d)-Header.csv", ','; header=true)
+		a, h = DelimitedFiles.readdlm(f, ','; header=true)
 		dfl = DataFrames.DataFrame()
 		for i = 1:size(a, 2)
 			ism = a[:, i] .== ""
@@ -178,7 +204,7 @@ function read_header(datadirs::AbstractVector; location::AbstractString=".")
 end
 
 function sumnan(X; dims=nothing, kw...)
-	if dims == nothing
+	if dims === nothing
 		return sum(X[.!isnan.(X)]; kw...)
 	else
 		count = .*(size(X)[vec(collect(dims))]...)
