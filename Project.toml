@@ -1,7 +1,7 @@
 name = "WellDataBase"
 uuid = "de22bbbd-f55e-4b9d-bfb8-bac9c7edfefc"
 authors = ["monty <velimir.vesselinov@gmail.com>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -10,9 +10,9 @@ DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 DocumentFunction = "e1f3b4f0-2dc4-57d3-83f7-d4b7faf3b05b"
 
 [compat]
-DataFrames = "0.21, 0.22"
+DataFrames = "1"
 DocumentFunction = "1"
-julia = "1.5"
+julia = "1.6"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
